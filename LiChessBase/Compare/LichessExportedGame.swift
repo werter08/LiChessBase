@@ -40,7 +40,7 @@ enum LichessGamesExportParser {
         player2Id: String,
         player1Display: String,
         player2Display: String
-    ) -> [PerfTypeGroup] {
+    ) -> [PerfTypeGroupModel] {
         let p1 = player1Id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let p2 = player2Id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !p1.isEmpty, !p2.isEmpty else { return [] }
@@ -103,7 +103,7 @@ enum LichessGamesExportParser {
         return orderedKeys.compactMap { key in
             guard let b = buckets[key] else { return nil }
             let sortedRows = b.rows.sorted { ($0.playedAt ?? .distantPast) > ($1.playedAt ?? .distantPast) }
-            return PerfTypeGroup(
+            return PerfTypeGroupModel(
                 perfTypeKey: key,
                 player1Title: p1Title,
                 player2Title: p2Title,

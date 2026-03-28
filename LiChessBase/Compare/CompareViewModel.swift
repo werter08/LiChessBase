@@ -23,7 +23,7 @@ final class CompareViewModel: ObservableObject {
 
     @Published var model: CompareModel?
     /// One export, grouped by `speed` with manual win/total counts per type.
-    @Published var perfGroups: [PerfTypeGroup] = []
+    @Published var perfGroups: [PerfTypeGroupModel] = []
 
     func compareUsers() {
         guard !isLoading else { return }

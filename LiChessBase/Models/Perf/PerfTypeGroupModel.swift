@@ -6,7 +6,7 @@
 import Foundation
 
 /// Head-to-head stats for one `perf` bucket (API `perfType`), plus the games in that bucket.
-struct PerfTypeGroup: Identifiable {
+struct PerfTypeGroupModel: Identifiable {
     let perfTypeKey: String
     var id: String { perfTypeKey }
 

@@ -1,6 +1,6 @@
 //
 //  HeadToHeadResultViews.swift
-//  Chess Base
+//  LiChessBase
 //
 
 import SwiftUI
@@ -105,13 +105,13 @@ struct PlayerWinSummaryPill: View {
 // MARK: - Per–time-control cards (same layout as main result; data from one export, grouped in-app)
 
 struct PerfTypeCarousel: View {
-    let groups: [PerfTypeGroup]
+    let groups: [PerfTypeGroupModel]
     let player1Name: String
     let player2Name: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("By time control")
+            Text("Filtered By Type")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
             ScrollView(.horizontal, showsIndicators: false) {
@@ -124,12 +124,20 @@ struct PerfTypeCarousel: View {
                                 player2Name: player2Name
                             )
                         ) {
-                            HeadToHeadMainResultCard(
-                                result: group.mainResult,
-                                showsSectionTitle: true,
-                                sectionTitle: group.title
-                            )
-                            .frame(width: 300, alignment: .leading)
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack(alignment: .center, spacing: 10) {
+                                    PerfTypeFlairImage(perfTypeKey: group.perfTypeKey, size: 36)
+                                    Text(group.title)
+                                        .font(.headline)
+                                        .foregroundStyle(.primary)
+                                }
+                                HeadToHeadMainResultCard(
+                                    result: group.mainResult,
+                                    showsSectionTitle: false,
+                                    sectionTitle: group.title
+                                )
+                            }
+                            .frame(width: 280, alignment: .leading)
                         }
                         .buttonStyle(.plain)
                     }

@@ -1,0 +1,13 @@
+Flair images are copied from the Lichess server repository (lila), directory public/flair/img.
+
+Source: https://github.com/lichess-org/lila/tree/master/public/flair
+
+Upstream ships WebP only (no separate SVG layer in that tree). This app bundles each
+icon as a single SVG file wrapping a high-resolution PNG derived from the official WebP
+from the URL above, so Xcode can scale them cleanly in the Asset Catalog.
+
+They are licensed under the GNU Affero General Public License v3.0, same as lila.
+See: https://github.com/lichess-org/lila/blob/master/COPYING
+
+Included files (activity.lichess-* and activity.lichess-variant-960) are used as
+decorative icons for time control / variant labels in this app.
