@@ -47,6 +47,9 @@ struct CompareView: View {
             .navigationDestination(for: PerfTypeRoute.self) { route in
                 GameTypeGamesListView(route: route)
             }
+            .navigationDestination(for: GameDetailRoute.self) { route in
+                GameDetailView(route: route)
+            }
         }
         .environmentObject(viewModel)
     }

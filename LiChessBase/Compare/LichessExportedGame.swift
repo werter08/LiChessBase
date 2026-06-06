@@ -14,6 +14,17 @@ struct LichessExportedGame: Decodable {
     /// Same family as API `perfType` — use for grouping (e.g. `chess960` vs standard at same speed).
     let perf: String?
     let winner: String?
+    let rated: Bool?
+    /// How the game ended: mate, resign, outoftime, timeout, draw, stalemate, aborted, noStart, cheat, variantEnd, …
+    let status: String?
+    /// SAN moves, space-separated (ply count → full moves).
+    let moves: String?
+    /// Real-time clock; `nil` for correspondence.
+    let clock: Clock?
+    /// Correspondence games only.
+    let daysPerTurn: Int?
+    /// Only present when requested with `opening=true`.
+    let opening: Opening?
     let players: Players
 
     struct Players: Decodable {
@@ -23,11 +34,28 @@ struct LichessExportedGame: Decodable {
 
     struct Side: Decodable {
         let user: User
+        /// Rating at game time.
+        let rating: Int?
         let ratingDiff: Int?
     }
 
     struct User: Decodable {
         let id: String
+        /// Display-cased username (`id` is lowercase).
+        let name: String?
+    }
+
+    struct Clock: Decodable {
+        /// Seconds on the clock at start.
+        let initial: Int
+        /// Increment per move, seconds.
+        let increment: Int
+    }
+
+    struct Opening: Decodable {
+        let eco: String
+        let name: String
+        let ply: Int
     }
 }
 
@@ -69,31 +97,51 @@ enum LichessGamesExportParser {
             let black = game.players.black.user.id.lowercased()
             guard (white == p1 && black == p2) || (white == p2 && black == p1) else { continue }
 
+            // Aborted/never-started games carry no result or rating info — skip them
+            // so they don't pollute the draw count or the list.
+            if let status = game.status, status == "aborted" || status == "noStart" { continue }
+
             let perfSource = game.perf ?? game.speed
             let perfTypeKey = LichessSpeed.normalizePerfTypeKey(perfSource)
             var bucket = buckets[perfTypeKey, default: Bucket()]
 
+            let p1IsWhite = (white == p1)
+            let outcome: GameResultRow.Outcome?
             switch game.winner {
             case "white":
-                if white == p1 { bucket.winsP1 += 1 } else { bucket.winsP2 += 1 }
+                outcome = p1IsWhite ? .player1Win : .player2Win
             case "black":
-                if black == p1 { bucket.winsP1 += 1 } else { bucket.winsP2 += 1 }
+                outcome = p1IsWhite ? .player2Win : .player1Win
             default:
-                bucket.draws += 1
+                outcome = .draw
+            }
+            switch outcome {
+            case .player1Win: bucket.winsP1 += 1
+            case .player2Win: bucket.winsP2 += 1
+            default: bucket.draws += 1
             }
 
-            let d1 = diff(for: p1, white: game.players.white, black: game.players.black)
-            let d2 = diff(for: p2, white: game.players.white, black: game.players.black)
-            let label = resultLabel(winner: game.winner)
+            let p1Side = p1IsWhite ? game.players.white : game.players.black
+            let p2Side = p1IsWhite ? game.players.black : game.players.white
             let playedAt = Date(timeIntervalSince1970: TimeInterval(game.createdAt) / 1000)
 
             bucket.rows.append(
                 GameResultRow(
                     id: game.id,
                     playedAt: playedAt,
-                    player1RatingDiff: d1,
-                    player2RatingDiff: d2,
-                    resultLabel: label
+                    player1RatingDiff: p1Side.ratingDiff,
+                    player2RatingDiff: p2Side.ratingDiff,
+                    resultLabel: resultLabel(winner: game.winner),
+                    outcome: outcome,
+                    player1Rating: p1Side.rating,
+                    player2Rating: p2Side.rating,
+                    player1PlayedWhite: p1IsWhite,
+                    terminationLabel: terminationLabel(status: game.status),
+                    openingLabel: openingLabel(opening: game.opening),
+                    timeControlLabel: timeControlLabel(clock: game.clock, daysPerTurn: game.daysPerTurn),
+                    moveCount: moveCount(moves: game.moves),
+                    rated: game.rated ?? false,
+                    movesSAN: game.moves
                 )
             )
             buckets[perfTypeKey] = bucket
@@ -115,18 +163,60 @@ enum LichessGamesExportParser {
         }
     }
 
-    private static func diff(for userId: String, white: LichessExportedGame.Side, black: LichessExportedGame.Side) -> Int? {
-        let uid = userId.lowercased()
-        if white.user.id.lowercased() == uid { return white.ratingDiff }
-        if black.user.id.lowercased() == uid { return black.ratingDiff }
-        return nil
-    }
-
     private static func resultLabel(winner: String?) -> String? {
         if winner == nil { return "½-½" }
         if winner == "white" { return "1-0" }
         if winner == "black" { return "0-1" }
         return "—"
+    }
+
+    private static func terminationLabel(status: String?) -> String? {
+        switch status {
+        case "mate": return "Checkmate"
+        case "resign": return "Resignation"
+        case "outoftime": return "Time out"
+        case "timeout": return "Abandoned"
+        case "draw": return "Draw"
+        case "stalemate": return "Stalemate"
+        case "cheat": return "Cheat detected"
+        case "variantEnd": return "Variant end"
+        default: return nil
+        }
+    }
+
+    /// "3+2" for real-time clocks (Lichess fraction style for sub-minute initials), "N days/move" for correspondence.
+    private static func timeControlLabel(clock: LichessExportedGame.Clock?, daysPerTurn: Int?) -> String? {
+        if let clock {
+            let initialLabel: String
+            if clock.initial % 60 == 0 {
+                initialLabel = "\(clock.initial / 60)"
+            } else {
+                switch clock.initial {
+                case 15: initialLabel = "¼"
+                case 30: initialLabel = "½"
+                case 45: initialLabel = "¾"
+                case 90: initialLabel = "1.5"
+                default: initialLabel = "\(clock.initial)s"
+                }
+            }
+            return "\(initialLabel)+\(clock.increment)"
+        }
+        if let days = daysPerTurn {
+            return days == 1 ? "1 day/move" : "\(days) days/move"
+        }
+        return nil
+    }
+
+    private static func moveCount(moves: String?) -> Int? {
+        guard let moves else { return nil }
+        let ply = moves.split(separator: " ").count
+        guard ply > 0 else { return nil }
+        return (ply + 1) / 2
+    }
+
+    private static func openingLabel(opening: LichessExportedGame.Opening?) -> String? {
+        guard let opening else { return nil }
+        return "\(opening.eco) · \(opening.name)"
     }
 
     private static func orderedPerfTypeKeys(from keys: Set<String>) -> [String] {
@@ -136,4 +226,3 @@ enum LichessGamesExportParser {
         return known + unknown
     }
 }
-

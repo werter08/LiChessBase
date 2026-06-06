@@ -71,7 +71,9 @@ enum Endpoints: Endpoint {
         case let .gamesExport(_, vs, perfType, maxGames):
             var p: Parameters = [
                 "vs": vs.trimmingCharacters(in: .whitespacesAndNewlines),
-                "max": "\(maxGames)"
+                "max": "\(maxGames)",
+                // Opening {eco, name, ply} is only included when requested.
+                "opening": "true"
             ]
             if let perf = perfType {
                 p["perfType"] = perf
